@@ -26,9 +26,8 @@ class LiteLLMRealGateway extends MastraModelGateway {
   }
 
   async getApiKey(): Promise<string> {
-    // LiteLLM proxy by default doesn't block local requests without master key,
-    // so we can pass a mock key value here.
-    return process.env.LITELLM_API_KEY ?? 'mock-key-123';
+    // When DB is enabled, LiteLLM expects a valid key starting with 'sk-' (like our Master Key)
+    return process.env.LITELLM_MASTER_KEY ?? 'sk-mastra-proxy-key-123';
   }
 
   async resolveLanguageModel({ modelId, providerId, apiKey }: { modelId: string; providerId: string; apiKey: string }) {

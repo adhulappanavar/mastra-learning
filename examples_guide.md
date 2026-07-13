@@ -543,3 +543,95 @@ sequenceDiagram
     end
 ```
 
+---
+
+## 📂 Example 08: Real LiteLLM Proxy Server Integration
+
+### Description
+Integrates the official **LiteLLM python proxy server** (from BerriAI) running persistently on port 4000. It routes model requests via a local `litellm-config.yaml` mapping, translating OpenAI `gpt-4o` request payloads into Google `gemini-2.0-flash` calls using your exported API key. The official LiteLLM Admin UI dashboard, complete playground, and metrics tracking pages are served natively by the LiteLLM server out-of-the-box.
+
+### 📐 Relationship Diagram
+
+```mermaid
+graph TD
+    subgraph Client Process (ex08-real-litellm.ts)
+        Main["Main Client Runner"]
+        Writer["writerAgent (Agent)"]
+        Coder["coderAgent (Agent)"]
+        Gateway["LiteLLMRealGateway (Mastra Custom Gateway)"]
+    end
+
+    subgraph Standalone Official Proxy Process (Python venv)
+        LiteLLM["Official LiteLLM Proxy (Port 4000)"]
+        Config["litellm-config.yaml (gpt-4o -> gemini-2.0-flash)"]
+        AdminUI["Official LiteLLM Admin UI Dashboard"]
+    end
+
+    subgraph External LLM API
+        Gemini["Google Gemini 2.0 Flash"]
+    end
+
+    Main -->|1. Triggers| Writer
+    Main -->|2. Triggers| Coder
+    
+    Writer -->|Resolve gpt-4o| Gateway
+    Coder -->|Resolve gpt-4o| Gateway
+    
+    Gateway -->|3. Route POST /v1/chat/completions| LiteLLM
+    LiteLLM -->|4. Read configuration mapping| Config
+    LiteLLM -->|5. Forward payload to Gemini| Gemini
+    
+    Gemini -->|6. Return response content| LiteLLM
+    LiteLLM -->|7. Return OpenAI-compatible response| Gateway
+    
+    LiteLLM -->|8. Record metrics / telemetry data| AdminUI
+```
+
+### 📐 Visual Architecture
+
+```mermaid
+graph LR
+    subgraph Client Process
+        Writer["writerAgent"] -->|1. Request Mapped Model| Gateway["LiteLLMRealGateway"]
+        Coder["coderAgent"] -->|1. Request Mapped Model| Gateway
+    end
+    
+    Gateway -->|2. Route POST /chat/completions| Proxy["Official LiteLLM Proxy (Port 4000)"]
+    
+    subgraph Official LiteLLM Server
+        Proxy -->|3. Parse config yaml| Config["litellm-config.yaml"]
+        Proxy -->|4. Log usage & track costs| DB["Internal Database / Registry"]
+        Proxy -->|5. Forward call to Gemini| Gemini["Google Gemini 2.0 Flash"]
+    end
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Runner (ex08-real-litellm.ts)
+    participant Writer as writerAgent
+    participant Coder as coderAgent
+    participant Gateway as Custom LiteLLMGateway
+    participant Proxy as Official LiteLLM Server (Port 4000)
+    participant Gemini as Google Gemini API
+    actor Browser as Official Admin UI View
+
+    Note over Proxy, Gemini: LiteLLM proxy is running persistently in python venv
+    
+    User->>Writer: Call writer.generate()
+    Writer->>Gateway: Resolve model
+    Gateway->>Proxy: POST /v1/chat/completions (model: gpt-4o)
+    Proxy->>Proxy: Map model 'gpt-4o' to 'gemini/gemini-2.0-flash'
+    Proxy->>Gemini: POST generateContent (using GOOGLE_API_KEY)
+    Gemini-->>Proxy: Return response text
+    Proxy->>Proxy: Record metrics, track costs, log tokens
+    Proxy-->>Gateway: Return OpenAI-compatible response JSON
+    Gateway-->>Writer: Returns response.text
+    Writer-->>User: Returns creative story output
+
+    Note over Browser, Proxy: User accesses http://localhost:4000/ui
+    Browser->>Proxy: Request Admin Dashboard Page
+    Proxy-->>Browser: Render complete, interactive LiteLLM Admin UI showing logs & keys
+```

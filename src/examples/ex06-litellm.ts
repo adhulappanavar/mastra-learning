@@ -3,6 +3,14 @@ import { Mastra } from '@mastra/core/mastra';
 import { type ProviderConfig, MastraModelGateway } from '@mastra/core/llm';
 import { createOpenAI } from '@ai-sdk/openai';
 import http from 'http';
+import readline from 'readline';
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const waitForKey = () => new Promise((resolve) => rl.question('\n[SYSTEM] Press Enter to stop the LiteLLM mock server and exit the program...\n', resolve));
 
 // 1. Spin up a Mock LiteLLM Proxy Server locally to capture and print metrics
 const mockLiteLLMServer = http.createServer((req, res) => {
@@ -121,11 +129,15 @@ async function main() {
   console.log('Agent Response:');
   console.log(response.text.trim());
 
-  // Close the mock server to allow the script to exit
+  // Wait for keypress before closing server
+  await waitForKey();
+  rl.close();
   mockLiteLLMServer.close();
 }
 
-main().catch(error => {
+main().catch(async (error) => {
   console.error(error);
+  await waitForKey();
+  rl.close();
   mockLiteLLMServer.close();
 });

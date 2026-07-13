@@ -446,3 +446,83 @@ sequenceDiagram
         Proxy-->>Browser: Render updated stats & request log rows on dashboard
     end
 ```
+
+---
+
+## 📂 Example 07: Standalone LiteLLM Server & Multi-Agent Client Routing
+
+### Description
+Separates the HTTP proxy server and dashboard into its own standalone process (`ex07-litellm-server.ts`), running persistently on port 4000. A separate client program (`ex07-agents-client.ts`) initiates multiple distinct agents (`writerAgent` and `coderAgent`), routing their model generation queries through the standalone LiteLLM server using a custom gateway that maps their provider identifiers in headers.
+
+### 📐 Relationship Diagram
+
+```mermaid
+graph TD
+    subgraph Client Process (ex07-agents-client.ts)
+        Main["Main Client Runner"]
+        Writer["writerAgent (Agent)"]
+        Coder["coderAgent (Agent)"]
+        Gateway["LiteLLMGateway (Mastra Custom Gateway)"]
+    end
+
+    subgraph Standalone Proxy Process (ex07-litellm-server.ts)
+        Proxy["LiteLLM Mock Proxy Server (Port 4000)"]
+        State["In-Memory State (Logs, Costs, Per-Agent Stats)"]
+        Dashboard["Dashboard UI (HTML/JS)"]
+    end
+
+    Main -->|1. Triggers| Writer
+    Main -->|2. Triggers| Coder
+    
+    Writer -->|Resolve gpt-4o| Gateway
+    Coder -->|Resolve gpt-4o| Gateway
+    
+    Gateway -->|3. POST completions with x-mastra-provider header| Proxy
+    
+    Proxy -->|4. Update Logs & Stats for WRITER or CODER| State
+    Dashboard -->|5. Reads Metrics| State
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Runner (ex07-agents-client.ts)
+    participant Writer as writerAgent
+    participant Coder as coderAgent
+    participant Gateway as Custom LiteLLMGateway
+    participant Proxy as Standalone Proxy Server (Port 4000)
+    participant State as Global State (Metrics & Logs)
+    actor Browser as Dashboard Browser View
+
+    %% Standalone server is already running
+    Note over Proxy, State: Standalone Server runs persistently
+    
+    %% Writer Request
+    User->>Writer: Call writer.generate()
+    Writer->>Gateway: Resolve model
+    Gateway->>Proxy: POST /v1/chat/completions (header x-mastra-provider: writer-provider)
+    Proxy->>State: Update WRITER agent request count & cost logs
+    Proxy-->>Gateway: Return completions payload
+    Gateway-->>Writer: Returns response.text
+    Writer-->>User: Returns creative story output
+
+    %% Coder Request
+    User->>Coder: Call coder.generate()
+    Coder->>Gateway: Resolve model
+    Gateway->>Proxy: POST /v1/chat/completions (header x-mastra-provider: coder-provider)
+    Proxy->>State: Update CODER agent request count & cost logs
+    Proxy-->>Gateway: Return completions payload
+    Gateway-->>Coder: Returns response.text
+    Coder-->>User: Returns code snippet output
+
+    %% Live Dashboard updating
+    loop Every 1 second
+        Browser->>Proxy: GET /api/metrics
+        Proxy->>State: Fetch stats for WRITER and CODER
+        State-->>Proxy: Return aggregate stats JSON
+        Proxy-->>Browser: Render live graphs, totals, and per-agent cards
+    end
+```
+

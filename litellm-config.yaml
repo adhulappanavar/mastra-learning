@@ -6,3 +6,4 @@ model_list:
 
 general_settings:
   master_key: sk-mastra-proxy-key-123
+  database_url: "postgresql://postgres:postgres@localhost:5432/litellm"

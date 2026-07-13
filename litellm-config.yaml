@@ -3,3 +3,6 @@ model_list:
     litellm_params:
       model: gemini/gemini-3.1-flash-lite
       api_key: os.environ/GOOGLE_API_KEY
+
+general_settings:
+  master_key: sk-mastra-proxy-key-123

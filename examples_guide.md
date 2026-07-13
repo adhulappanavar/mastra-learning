@@ -34,6 +34,24 @@ graph TD
     AgentInstance -->|6. Returns response.text| Main
 ```
 
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client / User Run
+    participant Mastra as Mastra Container
+    participant Agent as helloAgent (Agent)
+    participant LLM as Google Gemini 3.5 Flash
+
+    User->>Mastra: getAgent('helloAgent')
+    Mastra-->>User: Returns helloAgent instance
+    User->>Agent: Call agent.generate('Say hello...')
+    Agent->>LLM: POST chat/completions (System instructions + user prompt)
+    LLM-->>Agent: Returns raw text response
+    Agent-->>User: Returns response.text
+```
+
 ---
 
 ## 📂 Example 02: Adding Custom Tools (Zod-schema)
@@ -75,6 +93,30 @@ graph TD
     LLM -->|10. Synthesizes natural language answer| AgentInstance
     
     AgentInstance -->|11. Returns final text response| Main
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client / User Run
+    participant Mastra as Mastra Container
+    participant Agent as mathAgent (Agent)
+    participant Tool as calculatorTool (Tool)
+    participant LLM as Google Gemini 3.5 Flash
+
+    User->>Mastra: getAgent('mathAgent')
+    Mastra-->>User: Returns mathAgent instance
+    User->>Agent: Call agent.generate('What is 142 * 47?')
+    Agent->>LLM: POST chat/completions (Prompt + Tool definitions)
+    LLM-->>Agent: Request tool call: calculatorTool(operation='multiply', a=142, b=47)
+    Agent->>Tool: Execute calculatorTool with arguments
+    Tool->>Tool: Validate schema & compute (142 * 47)
+    Tool-->>Agent: Return output: { result: 6674 }
+    Agent->>LLM: POST chat/completions (Tool output history)
+    LLM-->>Agent: Returns final synthesized response text
+    Agent-->>User: Returns final response
 ```
 
 ---
@@ -128,6 +170,36 @@ graph TD
     AgentInstance -->|14. Returns response| Main
 ```
 
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client / User Run
+    participant Mastra as Mastra Container
+    participant Agent as multiMathAgent (Agent)
+    participant ToolFib as fibonacciTool (Tool)
+    participant ToolPrime as primeCheckTool (Tool)
+    participant LLM as Google Gemini 3.5 Flash
+
+    User->>Mastra: getAgent('multiMathAgent')
+    Mastra-->>User: Returns multiMathAgent instance
+    User->>Agent: Call agent.generate('Find 10th Fib and check if prime')
+    Agent->>LLM: POST chat/completions (Prompt + Tool definitions)
+    LLM-->>Agent: Request tool call: fibonacciTool(n=10)
+    Agent->>ToolFib: Execute fibonacciTool(10)
+    ToolFib-->>Agent: Return output: { value: 55 }
+    
+    Agent->>LLM: POST chat/completions (Tool output history)
+    LLM-->>Agent: Request tool call: primeCheckTool(number=55)
+    Agent->>ToolPrime: Execute primeCheckTool(55)
+    ToolPrime-->>Agent: Return output: { isPrime: false }
+    
+    Agent->>LLM: POST chat/completions (Tool output history)
+    LLM-->>Agent: Returns final synthesized answer
+    Agent-->>User: Returns final response
+```
+
 ---
 
 ## 📂 Example 04: Persistent Conversation Memory
@@ -178,6 +250,46 @@ graph TD
     AgentInstance -->|18. Return Response_2| Main
 ```
 
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client / User Run
+    participant Mastra as Mastra Container
+    participant Agent as tutorAgent (Agent)
+    participant Memory as Memory Layer
+    participant DB as SQLite DB (mastra.db)
+    participant LLM as Google Gemini 3.5 Flash
+
+    User->>Mastra: getAgent('tutorAgent')
+    Mastra-->>User: Returns tutorAgent instance
+    
+    Note over User, LLM: Turn 1 (Initialize Session)
+    User->>Agent: Call agent.generate('My name is Alice...', { memory })
+    Agent->>Memory: Get message history for thread/resource
+    Memory->>DB: Query historical messages (returns empty)
+    DB-->>Memory: []
+    Memory-->>Agent: []
+    Agent->>LLM: POST chat/completions (prompt)
+    LLM-->>Agent: Returns response text
+    Agent->>Memory: Save messages (Prompt_1 + Response_1)
+    Memory->>DB: Insert messages into database
+    Agent-->>User: Returns Response_1
+    
+    Note over User, LLM: Turn 2 (Recall Context)
+    User->>Agent: Call agent.generate('What is my name?', { memory })
+    Agent->>Memory: Get message history for thread/resource
+    Memory->>DB: Query historical messages
+    DB-->>Memory: [Prompt_1, Response_1]
+    Memory-->>Agent: [Prompt_1, Response_1]
+    Agent->>LLM: POST chat/completions (Prompt_1 + Response_1 + Prompt_2)
+    LLM-->>Agent: Returns response text (recalls name "Alice")
+    Agent->>Memory: Save messages (Prompt_2 + Response_2)
+    Memory->>DB: Insert messages into database
+    Agent-->>User: Returns Response_2
+```
+
 ---
 
 ## 📂 Example 05: Response Evaluation (Evals)
@@ -217,6 +329,32 @@ graph TD
     ScorerInstance -->|10. Generate Score (0 or 1)| ScorerInstance
     ScorerInstance -->|11. Generate Reason string| ScorerInstance
     Main -->|12. Return Eval Result| Main
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client / User Run
+    participant Mastra as Mastra Container
+    participant Agent as codeAgent (Agent)
+    participant Scorer as codeBlockScorer (Scorer)
+    participant LLM as Google Gemini 3.5 Flash
+
+    User->>Mastra: getAgent('codeAgent')
+    Mastra-->>User: Returns codeAgent instance
+    User->>Agent: Call agent.generate(prompt)
+    Agent->>LLM: POST chat/completions (prompt)
+    LLM-->>Agent: Returns code block output text
+    Agent-->>User: Returns response.text
+    
+    User->>Scorer: Call codeBlockScorer.run({ input, output })
+    Scorer->>Scorer: Preprocess: extract response.text
+    Scorer->>Scorer: Analyze: check for markdown format (```)
+    Scorer->>Scorer: GenerateScore: returns 1 (pass) or 0 (fail)
+    Scorer->>Scorer: GenerateReason: format pass/fail explanation
+    Scorer-->>User: Returns Eval Result { score, reason }
 ```
 
 ---

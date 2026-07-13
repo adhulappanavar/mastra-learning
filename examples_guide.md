@@ -548,7 +548,7 @@ sequenceDiagram
 ## 📂 Example 08: Real LiteLLM Proxy Server Integration
 
 ### Description
-Integrates the official **LiteLLM python proxy server** (from BerriAI) running persistently on port 4000. It routes model requests via a local `litellm-config.yaml` mapping, translating OpenAI `gpt-4o` request payloads into Google `gemini-2.0-flash` calls using your exported API key. The official LiteLLM Admin UI dashboard, complete playground, and metrics tracking pages are served natively by the LiteLLM server out-of-the-box.
+Integrates the official **LiteLLM python proxy server** (from BerriAI) running persistently on port 4000. It routes model requests via a local `litellm-config.yaml` mapping, translating OpenAI `gpt-4o` request payloads into Google `gemini-3.1-flash-lite` calls using your exported API key. The official LiteLLM Admin UI dashboard, complete playground, and metrics tracking pages are served natively by the LiteLLM server out-of-the-box.
 
 ### 📐 Relationship Diagram
 
@@ -563,12 +563,12 @@ graph TD
 
     subgraph Standalone Official Proxy Process (Python venv)
         LiteLLM["Official LiteLLM Proxy (Port 4000)"]
-        Config["litellm-config.yaml (gpt-4o -> gemini-2.0-flash)"]
+        Config["litellm-config.yaml (gpt-4o -> gemini-3.1-flash-lite)"]
         AdminUI["Official LiteLLM Admin UI Dashboard"]
     end
 
     subgraph External LLM API
-        Gemini["Google Gemini 2.0 Flash"]
+        Gemini["Google Gemini 3.1 Flash Lite"]
     end
 
     Main -->|1. Triggers| Writer
@@ -601,7 +601,7 @@ graph LR
     subgraph Official LiteLLM Server
         Proxy -->|3. Parse config yaml| Config["litellm-config.yaml"]
         Proxy -->|4. Log usage & track costs| DB["Internal Database / Registry"]
-        Proxy -->|5. Forward call to Gemini| Gemini["Google Gemini 2.0 Flash"]
+        Proxy -->|5. Forward call to Gemini| Gemini["Google Gemini 3.1 Flash Lite"]
     end
 ```
 
@@ -623,7 +623,7 @@ sequenceDiagram
     User->>Writer: Call writer.generate()
     Writer->>Gateway: Resolve model
     Gateway->>Proxy: POST /v1/chat/completions (model: gpt-4o)
-    Proxy->>Proxy: Map model 'gpt-4o' to 'gemini/gemini-2.0-flash'
+    Proxy->>Proxy: Map model 'gpt-4o' to 'gemini/gemini-3.1-flash-lite'
     Proxy->>Gemini: POST generateContent (using GOOGLE_API_KEY)
     Gemini-->>Proxy: Return response text
     Proxy->>Proxy: Record metrics, track costs, log tokens

@@ -662,3 +662,201 @@ sequenceDiagram
     Browser->>Proxy: Request Admin Dashboard Page
     Proxy-->>Browser: Render complete, interactive LiteLLM Admin UI showing logs & keys
 ```
+
+---
+
+## 📂 Example 09: Workflows & Directed Acyclic Graphs (DAGs)
+
+### Description
+Demonstrates Mastra's **Workflows API** (`createStep` and `createWorkflow`) by building a multi-agent text processing pipeline. It chains three distinct execution blocks (DAG nodes) together:
+1. **`write-draft` Step:** An agentic step querying the `writerAgent` via LiteLLM to create a raw story draft.
+2. **`analyze-draft` Step:** A deterministic javascript step analyzing the draft metrics (word count and character count).
+3. **`edit-draft` Step:** An agentic step querying the `editorAgent` via LiteLLM, providing the raw draft and analyzed metrics to generate a polished final story.
+
+Both agents query the local database-backed LiteLLM Proxy on port 4000, which routes calls to `gemini-3.1-flash-lite` on the Google Gemini API.
+
+### 📐 Relationship Diagram
+
+```mermaid
+graph TD
+    subgraph Client Process (ex09-workflows.ts)
+        Main["Main Client Runner"]
+        Workflow["contentPipelineWorkflow (Mastra Workflow)"]
+        
+        stepA["writeStep (Step 1)"]
+        stepB["analyzeStep (Step 2)"]
+        stepC["editStep (Step 3)"]
+        
+        Writer["writerAgent (Agent)"]
+        Editor["editorAgent (Agent)"]
+        Gateway["LiteLLMRealGateway"]
+    end
+
+    subgraph Official Proxy Server (Port 4000)
+        LiteLLM["Official LiteLLM Proxy"]
+    end
+
+    subgraph External LLM API
+        Gemini["Google Gemini 3.1 Flash Lite"]
+    end
+
+    Main -->|1. Triggers run.start()| Workflow
+    
+    Workflow -->|2. Runs first node| stepA
+    stepA -->|Generate draft prompt| Writer
+    Writer -->|Resolve gpt-4o| Gateway
+    
+    stepA -->|3. Pipes draft output| stepB
+    stepB -->|4. Computes word/char metrics & pipes| stepC
+    stepC -->|Refine draft prompt| Editor
+    Editor -->|Resolve gpt-4o| Gateway
+    
+    Gateway -->|5. Forward API calls| LiteLLM
+    LiteLLM -->|6. Call completions endpoint| Gemini
+    
+    stepC -->|7. Return final result| Workflow
+    Workflow -->|8. Return success state| Main
+```
+
+### 📐 Visual Architecture
+
+```mermaid
+graph LR
+    subgraph Mastra Workflow Engine
+        Input[Initial Input: Topic] -->|1. Starts| Write["write-draft (Step 1)"]
+        Write -->|2. Outputs: draft| Analyze["analyze-draft (Step 2)"]
+        Analyze -->|3. Outputs: word/char count| Edit["edit-draft (Step 3)"]
+        Edit -->|4. Outputs: finalStory| Output[Final Output]
+    end
+
+    Write -.->|LLM call via Gateway| Proxy["LiteLLM Proxy (Port 4000)"]
+    Edit -.->|LLM call via Gateway| Proxy
+    Proxy ===> Gemini["Google Gemini API"]
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Runner (ex09-workflows.ts)
+    participant Workflow as contentPipeline
+    participant writeStep as write-draft Step
+    participant analyzeStep as analyze-draft Step
+    participant editStep as edit-draft Step
+    participant LiteLLM as LiteLLM Proxy (Port 4000)
+
+    User->>Workflow: Run start(inputData: { topic })
+    Workflow->>writeStep: execute()
+    writeStep->>LiteLLM: POST /v1/chat/completions (via writerAgent)
+    LiteLLM-->>writeStep: Return Raw Draft Text
+    writeStep-->>Workflow: Return { draft }
+    
+    Workflow->>analyzeStep: execute(input: { draft })
+    Note over analyzeStep: Compute wordCount & charCount
+    analyzeStep-->>Workflow: Return { wordCount, charCount, draft }
+
+    Workflow->>editStep: execute(input: { wordCount, charCount, draft })
+    editStep->>LiteLLM: POST /v1/chat/completions (via editorAgent)
+    LiteLLM-->>editStep: Return Refined Story Text
+    editStep-->>Workflow: Return { finalStory }
+    
+    Workflow-->>User: Return status 'success' & { finalStory }
+```
+
+---
+
+## 📂 Example 10: Agent-as-a-Service (AaaS) via LiteLLM
+
+### Description
+Organizes the multi-agent text processing and refinement pipeline into a clean, modular, self-contained directory (`src/examples/ex10-aaas/`).
+It encapsulates:
+*   `gateway.ts`: Resolves model API queries through the local official database-backed LiteLLM Proxy.
+*   `agents/writer-agent.ts`: Generates a creative story draft based on a topic.
+*   `agents/editor-agent.ts`: Refines drafts using structural evaluation metrics.
+*   `workflows/content-pipeline.ts`: Composes the DAG content refinement sequence using `.then()`.
+*   `index.ts`: The central Mastra instance exporting everything and hosting the client execution run.
+
+The central `src/mastra/index.ts` imports the agents and workflows directly from this standalone folder, allowing `npx mastra dev` to automatically expose them as API endpoints to LiteLLM out-of-the-box.
+
+### 📁 Directory Layout
+```
+src/examples/ex10-aaas/
+├── agents/
+│   ├── editor-agent.ts
+│   └── writer-agent.ts
+├── workflows/
+│   └── content-pipeline.ts
+├── gateway.ts
+└── index.ts
+```
+
+### 📐 Relationship Diagram
+
+```mermaid
+graph TD
+    subgraph Self-Contained Folder (src/examples/ex10-aaas/)
+        Main["Main index.ts Client"]
+        Workflow["contentPipeline (Mastra Workflow)"]
+        Writer["writerAgent (Agent)"]
+        Editor["editorAgent (Agent)"]
+        Gateway["LiteLLMRealGateway"]
+    end
+
+    subgraph Central Registry (src/mastra/index.ts)
+        MastraServer["npx mastra dev Server (Port 4111)"]
+    end
+
+    subgraph Official Proxy Server (Port 4000)
+        LiteLLM["Official LiteLLM Proxy"]
+    end
+
+    subgraph External LLM API
+        Gemini["Google Gemini 3.1 Flash Lite"]
+    end
+
+    MastraServer -->|Imports & registers| Writer
+    MastraServer -->|Imports & registers| Editor
+    MastraServer -->|Imports & registers| Workflow
+
+    Main -->|1. Triggers run.start()| Workflow
+    Workflow -->|2. Queries| Writer
+    Workflow -->|3. Queries| Editor
+    
+    Writer -->|Resolve gpt-4o| Gateway
+    Editor -->|Resolve gpt-4o| Gateway
+    
+    Gateway -->|4. Route POST /v1/chat/completions| LiteLLM
+    LiteLLM -->|5. Forward API calls| Gemini
+    
+    LiteLLM -->|6. Logs prompt & telemetry metrics| DB["Postgres DB"]
+```
+
+### 📐 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Runner (ex10-aaas/index.ts)
+    participant Workflow as contentPipeline (ex10-aaas)
+    participant Gateway as Custom LiteLLMRealGateway
+    participant LiteLLM as LiteLLM Proxy (Port 4000)
+    participant MastraServer as Mastra dev Server (Port 4111)
+
+    Note over MastraServer, LiteLLM: Mastra Dev server serves endpoints for ex10 agents & workflows
+    
+    User->>Workflow: Run start(inputData: { topic })
+    Workflow->>Gateway: Resolve model 'gpt-4o' (via writerAgent)
+    Gateway->>LiteLLM: POST /v1/chat/completions
+    LiteLLM-->>Gateway: Return raw draft content
+    
+    Workflow->>Workflow: Execute analyze-draft Step
+    
+    Workflow->>Gateway: Resolve model 'gpt-4o' (via editorAgent)
+    Gateway->>LiteLLM: POST /v1/chat/completions (refined draft)
+    LiteLLM-->>Gateway: Return polished story
+    
+    Workflow-->>User: Return status 'success' & { finalStory }
+```
+
+

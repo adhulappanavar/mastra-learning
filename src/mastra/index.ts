@@ -46,8 +46,12 @@ class LiteLLMRealGateway extends MastraModelGateway {
     };
   }
 
-  async getApiKey(): Promise<string> {
+  async getApiKey(modelId: string): Promise<string> {
     return process.env.LITELLM_MASTER_KEY ?? 'sk-mastra-proxy-key-123';
+  }
+
+  buildUrl(modelId: string, envVars: Record<string, string>): string | undefined {
+    return 'http://localhost:4000/v1';
   }
 
   async resolveLanguageModel({ modelId, providerId, apiKey }: { modelId: string; providerId: string; apiKey: string }) {

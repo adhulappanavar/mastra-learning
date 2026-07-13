@@ -483,6 +483,23 @@ graph TD
     Dashboard -->|5. Reads Metrics| State
 ```
 
+### 📐 Visual Architecture
+
+```mermaid
+graph LR
+    subgraph Client Process
+        Writer["writerAgent"] -->|1. Request Mapped Model| Gateway["LiteLLMGateway"]
+        Coder["coderAgent"] -->|1. Request Mapped Model| Gateway
+    end
+    
+    Gateway -->|2. Route POST with x-mastra-provider header| Proxy["Standalone Proxy Server (Port 4000)"]
+    
+    subgraph Proxy Server Process
+        Proxy -->|3. Record Metrics by Agent| GlobalState["Global In-Memory State"]
+        Dashboard["Browser Dashboard UI"] -->|4. Poll GET /api/metrics| Proxy
+    end
+```
+
 ### 📐 Sequence Diagram
 
 ```mermaid

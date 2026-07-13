@@ -550,6 +550,33 @@ sequenceDiagram
 ### Description
 Integrates the official **LiteLLM python proxy server** (from BerriAI) running persistently on port 4000. It routes model requests via a local `litellm-config.yaml` mapping, translating OpenAI `gpt-4o` request payloads into Google `gemini-3.1-flash-lite` calls using your exported API key. The official LiteLLM Admin UI dashboard, complete playground, and metrics tracking pages are served natively by the LiteLLM server out-of-the-box.
 
+### 📋 Prerequisites & Setup
+To run this example successfully with a fully functioning database-backed Admin UI:
+
+1. **Start the local PostgreSQL container:**
+   ```bash
+   docker run -d --name mastra-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=litellm -p 5432:5432 postgres:latest
+   ```
+
+2. **Install Prisma and generate schema binaries:**
+   ```bash
+   source venv/bin/activate
+   pip install prisma
+   prisma generate --schema venv/lib/python3.13/site-packages/litellm/proxy/schema.prisma
+   ```
+
+3. **Run the LiteLLM proxy:**
+   ```bash
+   source venv/bin/activate
+   export $(grep -v '^#' .env | xargs)
+   litellm --config litellm-config.yaml --port 4000
+   ```
+
+4. **Login credentials for the Admin Dashboard at `http://localhost:4000/ui`:**
+   * **Username:** `admin`
+   * **Password / Master Key:** `sk-mastra-proxy-key-123`
+
+
 ### 📐 Relationship Diagram
 
 ```mermaid
